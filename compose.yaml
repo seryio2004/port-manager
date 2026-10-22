@@ -1,0 +1,44 @@
+name: port-manager
+
+services:
+  collector:
+    build: ./collector
+    restart: unless-stopped
+    # These namespaces let ss see the host's network sockets and processes.
+    network_mode: host
+    pid: host
+    read_only: true
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    volumes:
+      # WARNING: :ro does NOT make the Docker API read-only. Keep the
+      # collector isolated and do not expose it to untrusted users.
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - /etc/hostname:/host/etc/hostname:ro
+      - snapshot-data:/data
+    environment:
+      INTERVAL_SECONDS: ${INTERVAL_SECONDS:-5}
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=8m
+
+  web:
+    build: ./web
+    restart: unless-stopped
+    depends_on:
+      - collector
+    ports:
+      - "${BIND_IP:-127.0.0.1}:${WEB_PORT:-8765}:8080"
+    read_only: true
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    volumes:
+      - snapshot-data:/data:ro
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=8m
+
+volumes:
+  snapshot-data:
